@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,16 +11,34 @@ import {
   ShieldCheck,
   Sprout,
   LoaderCircle,
+  LockKeyhole,
+  UserPlus,
+  LogIn,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function MasukPage() {
+  const router = useRouter();
+
+  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  async function requestMagicLink(event) {
+  const isRegister = mode === "register";
+
+  function changeMode(nextMode) {
+    setMode(nextMode);
+    setPassword("");
+    setConfirmPassword("");
+    setNotice("");
+    setError("");
+  }
+
+  async function handleSubmit(event) {
     event.preventDefault();
     setNotice("");
     setError("");
@@ -31,31 +50,64 @@ export default function MasukPage() {
       return;
     }
 
+    if (password.length < 8) {
+      setError("Password harus terdiri dari minimal 8 karakter.");
+      return;
+    }
+
+    if (isRegister && password !== confirmPassword) {
+      setError("Konfirmasi password tidak cocok.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
+      if (isRegister) {
+        const { data, error: authError } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
 
-      const { error: authError } = await supabase.auth.signInWithOtp({
-        email: normalizedEmail,
-        options: {
-          emailRedirectTo: redirectTo,
-          shouldCreateUser: true,
-        },
-      });
+        if (authError) throw authError;
 
-      if (authError) throw authError;
+        setPassword("");
+        setConfirmPassword("");
 
-      setEmail(normalizedEmail);
-      setNotice(
-        "Tautan login sudah diminta. Buka email kamu dan klik tautan masuk dari Supabase. Periksa folder spam jika belum terlihat.",
-      );
+        if (data.session) {
+          router.replace("/dashboard");
+          router.refresh();
+          return;
+        }
+
+        setNotice(
+          "Pendaftaran berhasil diproses. Jika konfirmasi email diwajibkan, buka email kamu terlebih dahulu sebelum masuk.",
+        );
+      } else {
+        const { error: authError } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+
+        if (authError) throw authError;
+
+        router.replace("/dashboard");
+        router.refresh();
+      }
     } catch (err) {
-      console.error("Permintaan Magic Link gagal:", err);
-      setError(
-        err?.message ||
-          "Tautan login gagal dikirim. Periksa konfigurasi Email di Supabase.",
-      );
+      console.error("Autentikasi gagal:", err);
+
+      if (isRegister) {
+        setError(
+          err?.message ||
+            "Pendaftaran gagal. Periksa email dan konfigurasi Supabase.",
+        );
+      } else {
+        setError("Login gagal. Periksa email dan password, lalu coba lagi.");
+      }
     } finally {
       setLoading(false);
     }
@@ -63,12 +115,8 @@ export default function MasukPage() {
 
   return (
     <main className="auth-page">
-      <Link href="/" className="auth-back">
-        <ArrowLeft size={17} />
-        Kembali ke beranda
-      </Link>
-
       <div className="auth-shell">
+        {/* Panel informasi PANGANITA */}
         <section className="auth-story">
           <div className="auth-story-glow auth-glow-one" />
           <div className="auth-story-glow auth-glow-two" />
@@ -117,11 +165,11 @@ export default function MasukPage() {
 
             <div>
               <span className="auth-benefit-icon">
-                <Mail size={19} />
+                <LockKeyhole size={19} />
               </span>
               <span>
-                <strong>Praktis dengan email</strong>
-                <small>Masuk melalui tautan verifikasi dari Supabase.</small>
+                <strong>Login dengan password</strong>
+                <small>Gunakan email dan password untuk masuk kembali.</small>
               </span>
             </div>
           </div>
@@ -131,6 +179,7 @@ export default function MasukPage() {
           </div>
         </section>
 
+        {/* Formulir login dan pendaftaran */}
         <section className="auth-form-panel">
           <div className="auth-form-inner">
             <div className="auth-mobile-logo">
@@ -149,15 +198,19 @@ export default function MasukPage() {
               <span>2</span>
             </div>
 
-            <div className="auth-form-eyebrow">SELAMAT DATANG</div>
-            <h2>Masuk ke akun Mama</h2>
+            <div className="auth-form-eyebrow">
+              {isRegister ? "PENGGUNA BARU" : "SELAMAT DATANG"}
+            </div>
+
+            <h2>{isRegister ? "Buat akun Mama" : "Masuk ke PANGANITA"}</h2>
 
             <p className="auth-form-desc">
-              Masukkan email aktif. Kami akan mengirimkan tautan untuk masuk ke
-              akun PANGANITA.
+              {isRegister
+                ? "Buat akun untuk mulai mengelola hasil panen dan profil keluarga."
+                : "Gunakan email dan password untuk masuk ke akun PANGANITA."}
             </p>
 
-            <form onSubmit={requestMagicLink} className="auth-form">
+            <form onSubmit={handleSubmit} className="auth-form">
               <label htmlFor="email">Alamat email</label>
 
               <div className="phone-input-wrap">
@@ -182,6 +235,58 @@ export default function MasukPage() {
                 />
               </div>
 
+              <label htmlFor="password">Password</label>
+
+              <div className="phone-input-wrap">
+                <span className="country-code">
+                  <LockKeyhole size={18} />
+                </span>
+
+                <input
+                  id="password"
+                  type="password"
+                  autoComplete={
+                    isRegister ? "new-password" : "current-password"
+                  }
+                  placeholder="Minimal 8 karakter"
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setError("");
+                  }}
+                  minLength={8}
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              {isRegister && (
+                <>
+                  <label htmlFor="confirmPassword">Konfirmasi password</label>
+
+                  <div className="phone-input-wrap">
+                    <span className="country-code">
+                      <ShieldCheck size={18} />
+                    </span>
+
+                    <input
+                      id="confirmPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder="Ulangi password"
+                      value={confirmPassword}
+                      onChange={(event) => {
+                        setConfirmPassword(event.target.value);
+                        setError("");
+                      }}
+                      minLength={8}
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                </>
+              )}
+
               {error && (
                 <div className="auth-notice" role="alert">
                   {error}
@@ -202,11 +307,16 @@ export default function MasukPage() {
                 {loading ? (
                   <>
                     <LoaderCircle size={18} className="animate-spin" />
-                    Mengirim tautan...
+                    Memproses...
+                  </>
+                ) : isRegister ? (
+                  <>
+                    Buat akun
+                    <UserPlus size={18} />
                   </>
                 ) : (
                   <>
-                    Kirim tautan login
+                    Masuk
                     <ArrowRight size={18} />
                   </>
                 )}
@@ -216,14 +326,37 @@ export default function MasukPage() {
             <div className="auth-privacy">
               <ShieldCheck size={17} />
               <span>
-                Gunakan email yang bisa kamu akses. Jangan bagikan tautan login
+                Gunakan email yang dapat kamu akses. Jangan bagikan password
                 kepada orang lain.
               </span>
             </div>
 
             <div className="auth-bottom-link">
-              Baru menggunakan PANGANITA?{" "}
-              <Link href="/keluarga">Siapkan profil keluarga</Link>
+              {isRegister ? "Sudah punya akun? " : "Belum punya akun? "}
+
+              <button
+                type="button"
+                onClick={() => changeMode(isRegister ? "login" : "register")}
+                disabled={loading}
+                className="auth-mode-toggle"
+              >
+                {isRegister ? (
+                  <>
+                    <LogIn size={14} />
+                    Masuk
+                  </>
+                ) : (
+                  "Daftar sekarang"
+                )}
+              </button>
+            </div>
+
+            {/* Tombol kembali dengan styling dari globals.css */}
+            <div className="auth-back-home-wrap">
+              <Link href="/" className="auth-back-home">
+                <ArrowLeft size={18} />
+                <span>Kembali ke beranda</span>
+              </Link>
             </div>
           </div>
         </section>

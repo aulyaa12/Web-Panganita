@@ -4,7 +4,7 @@
 
 PANGANITA adalah aplikasi web untuk membantu perempuan produsen pangan dan keluarga mengelola hasil panen serta merencanakan pemanfaatannya untuk kebutuhan pangan keluarga. Aplikasi ini dikembangkan dengan pendekatan antarmuka yang sederhana agar mudah digunakan oleh pengguna dengan tingkat literasi digital yang beragam.
 
-**Repository GitHub:** https://github.com/aulyaa12/Web-Panganita**Aplikasi Vercel:** https://panganita.vercel.app
+**Repository GitHub:** https://github.com/aulyaa12/Web-Panganita**Aplikasi Vercel:** [web-panganita-894764f1h-aulyaa12.vercel.app](https://web-panganita-894764f1h-aulyaa12.vercel.app/)
 
 > **Status:** PANGANITA masih berupa prototipe yang dikembangkan bertahap. Hasil simulasi, data harga, dan perhitungan gizi belum boleh dianggap sebagai rekomendasi gizi yang tervalidasi.
 

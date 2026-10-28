@@ -73,7 +73,6 @@ export default function HistoryPage() {
     setErrorMessage("");
 
     try {
-      // 1. Periksa sesi pengguna.
       const {
         data: { user },
         error: authError,
@@ -89,7 +88,6 @@ export default function HistoryPage() {
         return;
       }
 
-      // 2. Temukan profil milik pengguna yang sedang login.
       const { data: profile, error: profileError } = await supabase
         .from("profil_pengguna")
         .select("id")
@@ -106,7 +104,6 @@ export default function HistoryPage() {
 
       setHasProfile(true);
 
-      // 3. Ambil riwayat dan alternatif keputusan yang tersimpan.
       const { data, error: historyError } = await supabase
         .from("riwayat_kalkulasi")
         .select(
@@ -162,11 +159,6 @@ export default function HistoryPage() {
 
       <main className="workflow-page">
         <div className="workflow-wrap">
-          <Link href="/dashboard" className="back-link">
-            <ArrowLeft size={17} />
-            Kembali ke dashboard
-          </Link>
-
           <div className="workflow-heading">
             <div className="eyebrow">
               <History size={15} />
@@ -184,9 +176,7 @@ export default function HistoryPage() {
           {loading && (
             <section className="form-card family-placeholder">
               <RefreshCw size={28} className="animate-spin" />
-
               <h2>Memuat riwayat panen...</h2>
-
               <p>Sedang mengambil catatan simulasi dari database PANGANITA.</p>
             </section>
           )}
@@ -198,7 +188,6 @@ export default function HistoryPage() {
               </div>
 
               <h2>Riwayat belum dapat ditampilkan</h2>
-
               <p>{errorMessage}</p>
 
               <div className="demo-notice">
@@ -317,7 +306,6 @@ export default function HistoryPage() {
 
                       <div className="history-card-title">
                         <h2>{item.nama_bahan_saat_hitung}</h2>
-
                         <p>Simulasi #{item.id}</p>
                       </div>
 
@@ -427,7 +415,6 @@ export default function HistoryPage() {
                     {selectedDecision && (
                       <div className="history-selected-summary">
                         <Wallet size={18} />
-
                         <p>
                           Pilihan Mama:{" "}
                           <strong>
@@ -447,16 +434,35 @@ export default function HistoryPage() {
                   </article>
                 );
               })}
-
-              <Link
-                href="/pindai"
-                className="button button-primary button-large"
-              >
-                <Wheat size={17} />
-                Buat simulasi baru
-              </Link>
             </section>
           )}
+
+          {/* Navigasi bawah: tombol kiri dan kanan */}
+          <table width="100%">
+            <tbody>
+              <tr>
+                <td align="left">
+                  <Link
+                    href="/dashboard"
+                    className="button button-primary button-large"
+                  >
+                    <ArrowLeft size={17} />
+                    Kembali ke dashboard
+                  </Link>
+                </td>
+
+                <td align="right">
+                  <Link
+                    href="/pindai"
+                    className="button button-primary button-large"
+                  >
+                    <Wheat size={17} />
+                    Buat simulasi baru
+                  </Link>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </main>
     </>

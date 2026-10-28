@@ -88,6 +88,7 @@ function toFormCounts(counts = {}) {
 function parseDraft() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
+
     if (!raw) return null;
 
     const draft = JSON.parse(raw);
@@ -162,7 +163,7 @@ export default function FamilyPage() {
     [nama, ibuHamil, ibuMenyusui, counts],
   );
 
-  // Simpan profil menggunakan identitas akun Supabase.
+  // Menyimpan profil berdasarkan ID akun Supabase.
   const saveToSupabase = useCallback(async (user, draft) => {
     if (!user?.id) {
       throw new Error("Sesi pengguna tidak ditemukan.");
@@ -196,9 +197,10 @@ export default function FamilyPage() {
     if (upsertError) throw upsertError;
   }, []);
 
-  // Memuat profil akun. Jika belum ada, pindahkan draf lokal.
+  // Memuat profil hanya milik akun yang sedang login.
+  // Akun baru tidak menggunakan draf lokal milik akun lain.
   const loadProfileForUser = useCallback(
-    async (user, draftOverride = null) => {
+    async (user) => {
       const { data, error: profileError } = await supabase
         .from("profil_pengguna")
         .select("nama_lengkap, ibu_hamil, ibu_menyusui, jumlah_anak")
@@ -221,33 +223,29 @@ export default function FamilyPage() {
         return "Profil keluarga berhasil dimuat dari Supabase.";
       }
 
-      const localDraft = draftOverride || parseDraft();
+      // Profil belum ada: mulai dengan formulir kosong.
+      localStorage.removeItem(STORAGE_KEY);
 
-      if (localDraft?.nama?.trim()) {
-        await saveToSupabase(user, localDraft);
-        applyDraft(localDraft);
-        saveDraft(localDraft);
+      const emptyDraft = {
+        nama: "",
+        ibuHamil: false,
+        ibuMenyusui: false,
+        counts: { ...initialCounts },
+      };
 
-        return "Draf keluarga berhasil dipindahkan ke Supabase.";
-      }
+      applyDraft(emptyDraft);
 
-      return "Profil belum tersedia. Silakan lengkapi data keluarga.";
+      return "Selamat datang! Silakan lengkapi profil keluarga Mama.";
     },
-    [applyDraft, saveDraft, saveToSupabase],
+    [applyDraft, saveDraft],
   );
 
-  // Memuat draf dan memeriksa sesi saat halaman dibuka.
+  // Memeriksa sesi sebelum memutuskan data mana yang akan dimuat.
   useEffect(() => {
     let active = true;
 
     async function initialize() {
       try {
-        const draft = parseDraft();
-
-        if (draft && active) {
-          applyDraft(draft);
-        }
-
         const {
           data: { session },
           error: authError,
@@ -257,13 +255,29 @@ export default function FamilyPage() {
         if (!active) return;
 
         const user = session?.user || null;
+
         setLoggedIn(Boolean(user));
 
         if (user) {
-          const result = await loadProfileForUser(user, draft);
+          // Pengguna login: ambil data dari profil akun sendiri.
+          const result = await loadProfileForUser(user);
 
           if (active && result) {
             showMessage(result);
+          }
+        } else {
+          // Pengguna belum login boleh menggunakan draf lokal.
+          const draft = parseDraft();
+
+          const emptyDraft = {
+            nama: "",
+            ibuHamil: false,
+            ibuMenyusui: false,
+            counts: { ...initialCounts },
+          };
+
+          if (active) {
+            applyDraft(draft || emptyDraft);
           }
         }
       } catch (err) {
@@ -288,9 +302,26 @@ export default function FamilyPage() {
       if (!active) return;
 
       const user = session?.user || null;
+
       setLoggedIn(Boolean(user));
 
-      // Lakukan pekerjaan asinkron setelah callback autentikasi selesai.
+      // Bersihkan draf ketika pengguna logout.
+      if (event === "SIGNED_OUT") {
+        localStorage.removeItem(STORAGE_KEY);
+
+        applyDraft({
+          nama: "",
+          ibuHamil: false,
+          ibuMenyusui: false,
+          counts: { ...initialCounts },
+        });
+
+        setSaved(false);
+        setMessage("");
+        setError("");
+      }
+
+      // Setelah login, muat profil berdasarkan ID akun.
       if (event === "SIGNED_IN" && user) {
         Promise.resolve().then(async () => {
           if (!active) return;
@@ -300,12 +331,12 @@ export default function FamilyPage() {
 
             if (active) showMessage(result);
           } catch (err) {
-            console.error("Gagal menyinkronkan draf:", err);
+            console.error("Gagal memuat profil setelah login:", err);
 
             if (active) {
               setError(
                 err?.message ||
-                  "Draf belum berhasil disimpan. Silakan coba lagi.",
+                  "Profil belum berhasil dimuat. Silakan coba lagi.",
               );
             }
           }
@@ -354,9 +385,6 @@ export default function FamilyPage() {
     setSaving(true);
 
     try {
-      // Draf lokal tetap disimpan agar tidak hilang.
-      saveDraft(draft);
-
       const {
         data: { session },
         error: authError,
@@ -367,6 +395,9 @@ export default function FamilyPage() {
       const user = session?.user || null;
 
       if (!user) {
+        // Hanya simpan sebagai draf jika belum login.
+        saveDraft(draft);
+
         setLoggedIn(false);
         setSaved(true);
 
@@ -377,7 +408,11 @@ export default function FamilyPage() {
         return;
       }
 
+      // Profil pengguna login disimpan permanen ke Supabase.
       await saveToSupabase(user, draft);
+
+      // Draf lokal diperbarui hanya setelah penyimpanan berhasil.
+      saveDraft(draft);
 
       setLoggedIn(true);
       setSaved(true);

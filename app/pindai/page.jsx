@@ -73,33 +73,42 @@ function explainError(message = "") {
   if (text.includes("login wajib")) {
     return "Silakan masuk terlebih dahulu sebelum menyimpan simulasi. Perhitungan langsung belum memerlukan penyimpanan akun.";
   }
+
   if (
     text.includes("data gizi tidak lengkap") ||
     text.includes("acuan kebutuhan keluarga belum lengkap")
   ) {
     return "Acuan gizi keluarga belum lengkap. Hasil belum dapat dihitung dengan aman.";
   }
+
   if (text.includes("acuan gizi belum tersedia")) {
     return "Acuan kebutuhan gizi untuk salah satu kelompok keluarga belum tersedia.";
   }
+
   if (text.includes("bdd") || text.includes("bahan mentah")) {
     return "Data bagian pangan yang dapat dimakan (BDD) belum tersedia atau perlu diperiksa.";
   }
+
   if (text.includes("protein keluarga") || text.includes("protein bahan")) {
     return "Data protein keluarga atau bahan pangan belum memadai untuk perhitungan.";
   }
+
   if (text.includes("energi keluarga") || text.includes("energi bahan")) {
     return "Data energi keluarga atau bahan pangan belum memadai untuk perhitungan.";
   }
+
   if (text.includes("target konsumsi buah")) {
     return "Perhitungan target penyimpanan buah belum tersedia. Pilih bahan pangan lain untuk simulasi ini.";
   }
+
   if (text.includes("hamil dan menyusui sekaligus")) {
     return "Versi perhitungan saat ini belum mendukung pilihan ibu hamil dan menyusui sekaligus.";
   }
+
   if (text.includes("tidak ada anggota keluarga")) {
     return "Lengkapi profil keluarga terlebih dahulu agar kebutuhan pangan dapat dihitung.";
   }
+
   if (text.includes("bahan pangan aktif tidak ditemukan")) {
     return "Bahan pangan ini tidak tersedia. Muat ulang daftar bahan dan pilih kembali.";
   }
@@ -126,11 +135,56 @@ export default function PindaiPage() {
   const [selected, setSelected] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedHistoryId, setSavedHistoryId] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function checkAuth() {
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (active) {
+          setIsAuthenticated(!authError && Boolean(user));
+        }
+      } catch (err) {
+        console.error("Gagal memeriksa sesi login:", err);
+        if (active) setIsAuthenticated(false);
+      } finally {
+        if (active) setCheckingAuth(false);
+      }
+    }
+
+    checkAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) {
+        setIsAuthenticated(Boolean(session?.user));
+        setCheckingAuth(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
 
     async function loadInitialData() {
+      if (!isAuthenticated) {
+        setLoadingFoods(false);
+        return;
+      }
+
       setLoadingFoods(true);
 
       try {
@@ -169,6 +223,7 @@ export default function PindaiPage() {
             "Daftar bahan pangan belum dapat dimuat. Periksa koneksi Supabase dan kebijakan akses data.",
           );
         }
+
         console.error("Gagal memuat bahan pangan:", err);
       } finally {
         if (active) setLoadingFoods(false);
@@ -180,7 +235,7 @@ export default function PindaiPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     return () => {
@@ -209,6 +264,7 @@ export default function PindaiPage() {
 
   function handleFoodChange(value) {
     setFoodId(value);
+
     const food = foods.find((item) => String(item.id) === value);
 
     setPrice(
@@ -223,6 +279,7 @@ export default function PindaiPage() {
 
   function handleImage(event) {
     const file = event.target.files?.[0];
+
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
@@ -284,6 +341,14 @@ export default function PindaiPage() {
 
   async function calculateHarvest(event) {
     event.preventDefault();
+
+    if (!isAuthenticated) {
+      setError(
+        "Silakan masuk terlebih dahulu untuk menggunakan fitur pemindaian panen.",
+      );
+      return;
+    }
+
     setError("");
     setSelected(false);
     setSavedHistoryId(null);
@@ -374,20 +439,19 @@ export default function PindaiPage() {
     setSaving(true);
 
     try {
-      // Pastikan ada sesi login Supabase.
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
 
       if (authError) throw authError;
+
       if (!user) {
         throw new Error(
           "Login wajib untuk menyimpan simulasi. Silakan masuk terlebih dahulu.",
         );
       }
 
-      // Ambil profil yang benar-benar dimiliki pengguna yang sedang login.
       const { data: profile, error: profileError } = await supabase
         .from("profil_pengguna")
         .select("id")
@@ -395,13 +459,13 @@ export default function PindaiPage() {
         .maybeSingle();
 
       if (profileError) throw profileError;
+
       if (!profile) {
         throw new Error(
           "Profil keluarga belum tersimpan di database. Profil browser saja belum cukup untuk menyimpan riwayat.",
         );
       }
 
-      // Simpan seluruh alternatif melalui fungsi SQL yang sudah tersedia.
       const { data: savedResult, error: saveError } = await supabase.rpc(
         "simpan_simulasi_panen_v1",
         {
@@ -414,16 +478,14 @@ export default function PindaiPage() {
       );
 
       if (saveError) throw saveError;
+
       if (!savedResult?.tersimpan || !savedResult?.riwayat_kalkulasi_id) {
         throw new Error("Database belum mengonfirmasi penyimpanan riwayat.");
       }
 
       const historyId = savedResult.riwayat_kalkulasi_id;
-      // Simpan ID segera: jika penandaan pilihan gagal, jangan membuat duplikat riwayat.
       setSavedHistoryId(historyId);
 
-      // Tandai alternatif yang dipilih. Jika kebijakan RLS menolak update,
-      // riwayat tetap sudah tersimpan dan ID-nya tetap ditampilkan.
       const { data: updatedRows, error: updateError } = await supabase
         .from("keputusan_panen")
         .update({ dipilih_pengguna: true })
@@ -436,6 +498,7 @@ export default function PindaiPage() {
           `Riwayat sudah tersimpan dengan ID ${historyId}, tetapi pilihan belum berhasil ditandai. Periksa kebijakan akses tabel keputusan_panen. Detail: ${updateError.message}`,
         );
       }
+
       if (!updatedRows?.length) {
         throw new Error(
           `Riwayat sudah tersimpan dengan ID ${historyId}, tetapi tidak ada baris keputusan yang berhasil ditandai.`,
@@ -458,21 +521,106 @@ export default function PindaiPage() {
     setSavedHistoryId(null);
   }
 
+  if (checkingAuth) {
+    return (
+      <>
+        <Navbar />
+        <main className="workflow-page">
+          <div className="workflow-wrap">
+            <section className="form-card">
+              <p>Memeriksa status login...</p>
+            </section>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Navbar />
+
+        <main className="workflow-page">
+          <div className="workflow-wrap">
+            <div className="workflow-heading">
+              <div className="eyebrow">
+                <Camera size={15} /> Pindai Panen
+              </div>
+
+              <h1>Masuk terlebih dahulu, Mama.</h1>
+
+              <p>
+                Fitur pemindaian dan simulasi panen hanya tersedia untuk
+                pengguna yang sudah masuk. Silakan login agar data keluarga dan
+                riwayat panen dapat dikelola dengan lebih aman.
+              </p>
+            </div>
+
+            <section className="form-card">
+              <div className="card-heading">
+                <div className="heading-icon">
+                  <CircleHelp size={22} />
+                </div>
+
+                <div>
+                  <h2>Login untuk melanjutkan</h2>
+                  <p>
+                    Setelah login, Mama dapat melanjutkan ke fitur pemindaian
+                    panen dan mengisi data keluarga yang diperlukan.
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                href="/masuk"
+                className="button button-primary button-large button-full"
+              >
+                Masuk ke PANGANITA <ArrowRight size={18} />
+              </Link>
+            </section>
+
+            <div className="workflow-actions">
+              <Link
+                href="/"
+                className="button button-secondary button-large button-full"
+                aria-label="Kembali ke beranda"
+              >
+                <ArrowLeft size={20} /> Kembali ke Beranda
+              </Link>
+            </div>
+          </div>
+        </main>
+
+        <footer className="footer">
+          <div className="footer-inner">
+            <div>
+              <strong>PANGANITA</strong>
+              <p>Pangan dan gizi untuk keluarga.</p>
+            </div>
+
+            <span>
+              Masuk diperlukan untuk menggunakan fitur pemindaian panen.
+            </span>
+          </div>
+        </footer>
+      </>
+    );
+  }
+
   return (
     <>
       <Navbar />
 
       <main className="workflow-page">
         <div className="workflow-wrap">
-          <Link href="/keluarga" className="back-link">
-            <ArrowLeft size={17} /> Profil keluarga
-          </Link>
-
           <div className="workflow-heading">
             <div className="eyebrow">
               <Camera size={15} /> Pindai Panen
             </div>
+
             <h1>Mari rencanakan hasil panen, Mama.</h1>
+
             <p>
               Masukkan data panen dan kebutuhan keluarga. PANGANITA akan
               menghitung alternatif pembagian berdasarkan aturan simulasi.
@@ -487,7 +635,9 @@ export default function PindaiPage() {
                 <small>Isi hasil panen</small>
               </div>
             </div>
+
             <div className="progress-connector" />
+
             <div className={step >= 2 ? "progress-step done" : "progress-step"}>
               <span>2</span>
               <div>
@@ -511,6 +661,7 @@ export default function PindaiPage() {
                   <div className="heading-icon">
                     <Wheat size={22} />
                   </div>
+
                   <div>
                     <h2>Hasil panen Mama</h2>
                     <p>
@@ -534,8 +685,10 @@ export default function PindaiPage() {
                       <span className="upload-icon">
                         <ImagePlus size={27} />
                       </span>
+
                       <strong>Ambil foto atau pilih dari galeri</strong>
                       <span>JPG, PNG, atau WebP · maksimal 8 MB</span>
+
                       <span className="upload-button">
                         <Upload size={16} /> Pilih foto
                       </span>
@@ -586,9 +739,11 @@ export default function PindaiPage() {
                   {loadingFoods && (
                     <option value="">Memuat bahan pangan...</option>
                   )}
+
                   {!loadingFoods && foods.length === 0 && (
                     <option value="">Bahan pangan tidak tersedia</option>
                   )}
+
                   {foods.map((food) => (
                     <option key={food.id} value={String(food.id)}>
                       {food.nama}
@@ -607,6 +762,7 @@ export default function PindaiPage() {
                     <label className="field-label" htmlFor="weight">
                       Berat panen (kg)
                     </label>
+
                     <input
                       id="weight"
                       className="input-control"
@@ -627,6 +783,7 @@ export default function PindaiPage() {
                     <label className="field-label" htmlFor="price">
                       Harga jual per kg (Rp)
                     </label>
+
                     <input
                       id="price"
                       className="input-control"
@@ -649,6 +806,7 @@ export default function PindaiPage() {
                     <strong>{days} hari</strong>
                     <span>Rencanakan lama persediaan pangan keluarga.</span>
                   </div>
+
                   <div className="stepper">
                     <button
                       type="button"
@@ -658,7 +816,9 @@ export default function PindaiPage() {
                     >
                       <Minus size={17} />
                     </button>
+
                     <span>{days}</span>
+
                     <button
                       type="button"
                       aria-label="Tambah hari"
@@ -707,16 +867,20 @@ export default function PindaiPage() {
                 <div className="side-illustration">
                   <Sprout size={38} />
                 </div>
+
                 <h3>Mengapa perlu menyisihkan hasil panen?</h3>
+
                 <p>
                   Hasil panen dapat membantu memenuhi kebutuhan uang sekaligus
                   menjadi sumber pangan keluarga. Pembagian perlu disesuaikan
                   dengan kondisi keluarga dan jumlah panen yang tersedia.
                 </p>
+
                 <div className="side-tip">
                   <Check size={17} />
                   <span>Berat simpan dan jual dihitung dari data panen.</span>
                 </div>
+
                 <div className="side-tip">
                   <Check size={17} />
                   <span>Keputusan akhir tetap berada pada Mama.</span>
@@ -732,6 +896,7 @@ export default function PindaiPage() {
                     <strong>{kg(result?.total_panen_kg)}</strong>
                     <span>{result?.nama_bahan}</span>
                   </div>
+
                   <div className="result-food-icon">
                     <Wheat size={31} />
                   </div>
@@ -746,6 +911,7 @@ export default function PindaiPage() {
                       tervalidasi.
                     </p>
                   </div>
+
                   <button
                     type="button"
                     className="text-button"
@@ -790,6 +956,7 @@ export default function PindaiPage() {
                         <div className="option-content">
                           <div className="option-name-row">
                             <h3>{option.title || option.jenis_keputusan}</h3>
+
                             {isSelected && (
                               <span className="selected-label">
                                 <Check size={13} /> Dipilih
@@ -804,6 +971,7 @@ export default function PindaiPage() {
                               <span>Disimpan</span>
                               <strong>{kg(option.berat_simpan_kg)}</strong>
                             </div>
+
                             <div>
                               <span>Dijual</span>
                               <strong>{kg(option.berat_jual_kg)}</strong>
@@ -935,7 +1103,9 @@ export default function PindaiPage() {
                 <div className="side-illustration">
                   <Leaf size={38} />
                 </div>
+
                 <h3>Keputusan tetap di tangan Mama</h3>
+
                 <p>
                   Pertimbangkan kebutuhan pangan keluarga, hasil panen, dan
                   kebutuhan uang. Jika target belum tercukupi, kekurangannya
@@ -944,6 +1114,25 @@ export default function PindaiPage() {
               </aside>
             </section>
           )}
+
+          {/* Tombol Kembali: sejajar dengan kolom formulir dan diberi jarak */}
+          <div className="form-layout" style={{ marginTop: 24 }}>
+            <div className="workflow-actions" style={{ width: "100%" }}>
+              <Link
+                href="/dashboard"
+                className="button button-primary button-large button-full"
+                aria-label="Kembali ke dashboard"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  justifyContent: "center",
+                }}
+              >
+                <ArrowLeft size={22} />
+                Kembali
+              </Link>
+            </div>
+          </div>
         </div>
       </main>
 
@@ -953,6 +1142,7 @@ export default function PindaiPage() {
             <strong>PANGANITA</strong>
             <p>Pangan dan gizi untuk keluarga.</p>
           </div>
+
           <span>Simulasi panen · Hasil prototipe perlu diverifikasi.</span>
         </div>
       </footer>

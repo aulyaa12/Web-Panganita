@@ -2306,3 +2306,92 @@ button, input, select { font-size: 16px; }
 .account-detail + .button {
   margin-top: 8px;
 }
+
+
+
+/* Tombol kembali ke beranda */
+.auth-back-home-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid #e1e9e3;
+}
+
+.auth-back-home {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 12px 20px;
+  border: 1px solid #d5e1d8;
+  border-radius: 12px;
+  background-color: #edf2ee;
+  color: #536b5b;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.auth-back-home:hover {
+  background-color: #dfe9e1;
+  border-color: #bdcfc1;
+}
+
+.auth-back-home:focus-visible {
+  outline: 3px solid #7da58a;
+  outline-offset: 3px;
+}
+
+/* Tombol berganti antara login dan pendaftaran */
+.auth-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #126747;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-mode-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 480px) {
+  .auth-back-home-wrap {
+    width: 100%;
+  }
+
+  .auth-back-home {
+    width: 100%;
+    min-height: 48px;
+  }
+}
+
+
+.back-link-soft {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid #d4e2d8;
+  border-radius: 12px;
+  background: #edf3ef;
+  color: #315b47;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.back-link-soft:hover {
+  background: #e1ece4;
+  border-color: #b8d0c0;
+}
