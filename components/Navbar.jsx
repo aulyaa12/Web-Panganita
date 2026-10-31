@@ -1,26 +1,18 @@
-
 "use client";
 
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Menu,
-  X,
-  LogIn,
-  UserRound,
-  LogOut,
-} from "lucide-react";
+import { Menu, X, LogIn, UserRound, LogOut, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-const publicLinks = [
-  { href: "/", label: "Beranda" },
-];
+const publicLinks = [{ href: "/", label: "Beranda" }];
 
 const privateLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/pindai", label: "Pindai Panen" },
+  { href: "/bu-nita", label: "Bu Nita", icon: MessageCircle },
   { href: "/keluarga", label: "Keluarga" },
   { href: "/riwayat", label: "Riwayat" },
 ];
@@ -66,14 +58,12 @@ export default function Navbar() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (mounted) {
-          setUser(session?.user ?? null);
-          setCheckingAuth(false);
-        }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setUser(session?.user ?? null);
+        setCheckingAuth(false);
       }
-    );
+    });
 
     return () => {
       mounted = false;
@@ -143,9 +133,7 @@ export default function Navbar() {
           type="button"
           className="mobile-menu"
           onClick={() => setOpen((previous) => !previous)}
-          aria-label={
-            open ? "Tutup menu navigasi" : "Buka menu navigasi"
-          }
+          aria-label={open ? "Tutup menu navigasi" : "Buka menu navigasi"}
           aria-expanded={open}
         >
           {open ? <X size={22} /> : <Menu size={22} />}
@@ -161,28 +149,27 @@ export default function Navbar() {
             </span>
           ) : isLoggedIn ? (
             <>
-              {privateLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={closeMenu}
-                  className={
-                    isActive(link.href)
-                      ? "nav-link active"
-                      : "nav-link"
-                  }
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {privateLinks.map((link) => {
+                const Icon = link.icon;
+
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={closeMenu}
+                    className={
+                      isActive(link.href) ? "nav-link active" : "nav-link"
+                    }
+                  >
+                    {Icon && <Icon size={17} />}
+                    <span>{link.label}</span>
+                  </Link>
+                );
+              })}
 
               <Link
                 href="/akun"
-                className={
-                  isActive("/akun")
-                    ? "nav-login active"
-                    : "nav-login"
-                }
+                className={isActive("/akun") ? "nav-login active" : "nav-login"}
                 onClick={closeMenu}
                 title="Lihat informasi akun"
               >
@@ -198,9 +185,7 @@ export default function Navbar() {
                 title="Keluar dari akun"
               >
                 <LogOut size={17} />
-                <span>
-                  {loggingOut ? "Keluar..." : "Keluar"}
-                </span>
+                <span>{loggingOut ? "Keluar..." : "Keluar"}</span>
               </button>
             </>
           ) : (
@@ -211,9 +196,7 @@ export default function Navbar() {
                   href={link.href}
                   onClick={closeMenu}
                   className={
-                    isActive(link.href)
-                      ? "nav-link active"
-                      : "nav-link"
+                    isActive(link.href) ? "nav-link active" : "nav-link"
                   }
                 >
                   {link.label}

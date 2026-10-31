@@ -1,5 +1,47 @@
-node_modules
-.next
-out
-.env*
+﻿# Next.js
+.next/
+out/
+build/
+node_modules/
+.turbo/
+
+# Environment & secrets
+.env
+.env.*
 !.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Computer Vision
+runs/
+wandb/
+*.pt
+*.onnx
+*.engine
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# PANGANITA - Data pengujian
+foto-uji/
+datasets/
+results/
+
+# Python virtual environment
+backend/.venv/

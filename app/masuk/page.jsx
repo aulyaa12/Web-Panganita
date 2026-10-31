@@ -202,7 +202,7 @@ export default function MasukPage() {
               {isRegister ? "PENGGUNA BARU" : "SELAMAT DATANG"}
             </div>
 
-            <h2>{isRegister ? "Buat akun Mama" : "Masuk ke PANGANITA"}</h2>
+            <h2>{isRegister ? "Buat akun Ibu" : "Masuk ke PANGANITA"}</h2>
 
             <p className="auth-form-desc">
               {isRegister

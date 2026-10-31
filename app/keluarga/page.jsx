@@ -170,7 +170,7 @@ export default function FamilyPage() {
     }
 
     if (!draft.nama?.trim()) {
-      throw new Error("Nama Mama belum diisi.");
+      throw new Error("Nama Ibu belum diisi.");
     }
 
     if (draft.ibuHamil && draft.ibuMenyusui) {
@@ -235,7 +235,7 @@ export default function FamilyPage() {
 
       applyDraft(emptyDraft);
 
-      return "Selamat datang! Silakan lengkapi profil keluarga Mama.";
+      return "Selamat datang! Silakan lengkapi profil keluarga Ibu.";
     },
     [applyDraft, saveDraft],
   );
@@ -371,7 +371,7 @@ export default function FamilyPage() {
     const draft = getFormData();
 
     if (!draft.nama.trim()) {
-      setError("Masukkan nama Mama terlebih dahulu.");
+      setError("Masukkan nama Ibu terlebih dahulu.");
       return;
     }
 
@@ -447,7 +447,7 @@ export default function FamilyPage() {
               Profil keluarga
             </div>
 
-            <h1>Kenali keluarga Mama.</h1>
+            <h1>Kenali keluarga Ibu.</h1>
 
             <p>
               Informasi ini membantu PANGANITA merencanakan pangan berdasarkan
@@ -463,16 +463,16 @@ export default function FamilyPage() {
               </div>
 
               <div>
-                <h2>Data Mama</h2>
+                <h2>Data Ibu</h2>
                 <p>Nama ini digunakan untuk profil keluarga.</p>
               </div>
             </div>
 
             <div className="form-field">
-              <label htmlFor="nama-mama">Nama Mama</label>
+              <label htmlFor="nama-Ibu">Nama Ibu</label>
 
               <input
-                id="nama-mama"
+                id="nama-Ibu"
                 className="form-input"
                 type="text"
                 value={nama}
@@ -602,8 +602,8 @@ export default function FamilyPage() {
 
               <p>
                 {loggedIn
-                  ? "Profil akan disimpan ke akun Mama di Supabase."
-                  : "Mama bisa mengisi profil sekarang. Draf disimpan di browser dan belum menjadi profil permanen."}
+                  ? "Profil akan disimpan ke akun Ibu di Supabase."
+                  : "Ibu bisa mengisi profil sekarang. Draf disimpan di browser dan belum menjadi profil permanen."}
               </p>
             </div>
 

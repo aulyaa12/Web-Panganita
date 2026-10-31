@@ -211,8 +211,8 @@ export default function DashboardPage() {
       ? Math.max(0, Number(family.jumlahAnak) || 0)
       : localChildCount;
 
-  // Mama adalah satu orang dewasa. Status hamil/menyusui adalah
-  // kondisi Mama, bukan anggota keluarga tambahan.
+  // Ibu adalah satu orang dewasa. Status hamil/menyusui adalah
+  // kondisi Ibu, bukan anggota keluarga tambahan.
   const adultCount = family ? Math.max(0, Number(family.jumlahDewasa) || 1) : 0;
   const memberCount = adultCount + childCount;
 
@@ -220,7 +220,7 @@ export default function DashboardPage() {
     family?.source === "database" ||
     (family?.source === "local" && memberCount > 0);
 
-  const displayName = family?.nama?.trim() || "Mama";
+  const displayName = family?.nama?.trim() || "Ibu";
 
   return (
     <>
@@ -268,7 +268,7 @@ export default function DashboardPage() {
                 <div className="dashboard-section-heading">
                   <div>
                     <h2>Mulai dari sini</h2>
-                    <p>Pilih kegiatan yang ingin Mama lakukan.</p>
+                    <p>Pilih kegiatan yang ingin Ibu lakukan.</p>
                   </div>
                 </div>
 
@@ -435,7 +435,7 @@ export default function DashboardPage() {
                     <strong>Catatan:</strong>{" "}
                     {family?.source === "database"
                       ? family.childCountSource === "local"
-                        ? "Profil Mama berasal dari Supabase, tetapi tabel data_anak belum memiliki baris anak. Jumlah anak sementara dibaca dari draf browser; simpanan ini belum tersimpan permanen di database."
+                        ? "Profil Ibu berasal dari Supabase, tetapi tabel data_anak belum memiliki baris anak. Jumlah anak sementara dibaca dari draf browser; simpanan ini belum tersimpan permanen di database."
                         : "Data profil dan anak berasal dari Supabase. Ringkasan panen dan pendapatan belum terhubung."
                       : "Data yang ditampilkan berasal dari draf lokal atau belum tersedia. Data ini bukan bukti bahwa profil telah tersimpan di Supabase."}
                   </p>

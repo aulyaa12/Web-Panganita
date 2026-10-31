@@ -165,11 +165,11 @@ export default function HistoryPage() {
               Riwayat panen
             </div>
 
-            <h1>Catatan panen Mama.</h1>
+            <h1>Catatan panen Ibu.</h1>
 
             <p>
               Lihat kembali hasil simulasi, pembagian panen, dan alternatif yang
-              Mama pilih sebelumnya.
+              Ibu pilih sebelumnya.
             </p>
           </div>
 
@@ -373,7 +373,7 @@ export default function HistoryPage() {
                               </strong>
 
                               {decision.dipilih_pengguna && (
-                                <span>Dipilih Mama</span>
+                                <span>Dipilih Ibu</span>
                               )}
                             </div>
 
@@ -416,7 +416,7 @@ export default function HistoryPage() {
                       <div className="history-selected-summary">
                         <Wallet size={18} />
                         <p>
-                          Pilihan Mama:{" "}
+                          Pilihan Ibu:{" "}
                           <strong>
                             {decisionLabels[selectedDecision.jenis_keputusan] ||
                               selectedDecision.jenis_keputusan}
