@@ -1,0 +1,496 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "PANGANITA Core & AI API Documentation",
+    "version": "1.0.0",
+    "description": "Dokumentasi Resmi API Platform PANGANITA (Pangan Ibu Nusantara untuk Cegah Stunting). Mencakup integrasi AI RAG Bu Nita (Multidialek & Voice Note), AI Computer Vision YOLO26n Panen, Autentikasi WhatsApp OTP, Profil & Asesmen Gizi Keluarga, serta Simulasi Keputusan Panen.",
+    "contact": {
+      "name": "Tim PANGANITA",
+      "url": "https://panganita-app.vercel.app"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://panganita-app.vercel.app",
+      "description": "Production Server (Vercel)"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "AI Chatbot Bu Nita (RAG)",
+      "description": "Asisten edukasi gizi balita & pangan pekarangan berbasis Retrieval-Augmented Generation, pemahaman multidialek nusantara, dan dukungan voice note."
+    },
+    {
+      "name": "AI Computer Vision",
+      "description": "Deteksi panen pekarangan (lele, kembung, singkong, kelor) dan estimasi berat panen menggunakan YOLO26n."
+    },
+    {
+      "name": "Autentikasi (WhatsApp OTP)",
+      "description": "Sistem masuk/daftar menggunakan nomor WhatsApp dengan proteksi kode HMAC-SHA256."
+    },
+    {
+      "name": "Profil & Asesmen Keluarga",
+      "description": "Pengelolaan profil ibu hamil/menyusui dan asesmen agregat jumlah balita per kelompok usia (Database V9)."
+    },
+    {
+      "name": "Simulasi & Keputusan Panen",
+      "description": "Kalkulator pembagian panen pekarangan: alokasi simpan untuk AKG keluarga vs alokasi jual untuk UMKM."
+    },
+    {
+      "name": "Riwayat Panen",
+      "description": "Pencatatan riwayat kalkulasi panen dan pilihan alternatif keputusan gizi keluarga."
+    }
+  ],
+  "paths": {
+    "/api/chat": {
+      "post": {
+        "tags": ["AI Chatbot Bu Nita (RAG)"],
+        "summary": "Konsultasi Gizi Bu Nita AI (Teks / Voice Note Dialek)",
+        "description": "Mengirimkan pertanyaan konsultasi gizi balita/ibu hamil. Mendukung teks bebas, dialek daerah nusantara (Papua, Sunda, Jawa, Minang, dll.), serta file rekaman suara (audioBase64) lintas browser.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              },
+              "examples": {
+                "teks_dialek_papua": {
+                  "summary": "Contoh Dialek Papua (Bintuni)",
+                  "value": {
+                    "message": "Tong pu anak ini tra mau makan papeda sama ikan lele, badan lemas sekali, ada resep ka Bu Nita?"
+                  }
+                },
+                "teks_dialek_sunda": {
+                  "summary": "Contoh Dialek Sunda (Banten/Jabar)",
+                  "value": {
+                    "message": "Bu Nita, ieu budak leutik abdi nuju tiris sareng embung tuang lele, sae teu pami dipasihan daun kelor?"
+                  }
+                },
+                "voice_note_audio": {
+                  "summary": "Contoh Voice Note (Audio Base64)",
+                  "value": {
+                    "message": "🎤 Pesan Suara Ibu (00:09)",
+                    "audioBase64": "GkXfo59ChoEBQveBAULygQ8USAhOuwEAAAAAAAA+t3vh8gAAAAAAAAA=",
+                    "mimeType": "audio/webm",
+                    "duration": "0:09"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respon konsultasi gizi berhasil dihasilkan oleh Bu Nita AI",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Input pesan atau audio kosong"
+          },
+          "500": {
+            "description": "Kesalahan server internal"
+          }
+        }
+      }
+    },
+    "/api/vision/detect": {
+      "post": {
+        "tags": ["AI Computer Vision"],
+        "summary": "Deteksi Panen Pangan Lokal (YOLO26n)",
+        "description": "Menganalisis foto panen pekarangan untuk mendeteksi komoditas (lele, kembung, daun kelor, singkong) beserta estimasi berat panen.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "File gambar panen (JPG/PNG)"
+                  }
+                }
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "imageBase64": {
+                    "type": "string",
+                    "description": "String gambar ter-encode Base64"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hasil deteksi objek panen berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisionDetectResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/otp/send": {
+      "post": {
+        "tags": ["Autentikasi (WhatsApp OTP)"],
+        "summary": "Kirim Kode OTP WhatsApp",
+        "description": "Mengirimkan 6 digit kode OTP verifikasi ke nomor WhatsApp pengguna. Hash kode disimpan di tabel `otp_codes`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone"],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "example": "081234567890",
+                    "description": "Nomor WhatsApp aktif pengguna"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Kode OTP berhasil dikirim",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Kode OTP telah dikirim via WhatsApp" },
+                    "expires_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/otp/verify": {
+      "post": {
+        "tags": ["Autentikasi (WhatsApp OTP)"],
+        "summary": "Verifikasi Kode OTP WhatsApp",
+        "description": "Memvalidasi kode OTP yang dimasukkan pengguna. Jika valid, sesi login Supabase dibuat.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone", "otp"],
+                "properties": {
+                  "phone": { "type": "string", "example": "081234567890" },
+                  "otp": { "type": "string", "example": "123456" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verifikasi OTP berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "token": { "type": "string", "example": "sb-access-token-xyz" },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "phone": { "type": "string", "example": "081234567890" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Kode OTP salah atau telah kadaluarsa"
+          }
+        }
+      }
+    },
+    "/api/keluarga": {
+      "get": {
+        "tags": ["Profil & Asesmen Keluarga"],
+        "summary": "Ambil Data Profil Keluarga Pengguna",
+        "description": "Mengambil rincian kondisi keluarga (status hamil, menyusui, dan agregat jumlah balita) dari tabel `profil_keluarga`.",
+        "responses": {
+          "200": {
+            "description": "Data profil keluarga ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilKeluarga"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Profil & Asesmen Keluarga"],
+        "summary": "Simpan / Perbarui Asesmen Profil Keluarga",
+        "description": "Menyimpan data profil awal keluarga ibu nusantara sesuai skema Database V9.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfilKeluargaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profil keluarga berhasil disimpan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "$ref": "#/components/schemas/ProfilKeluarga" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/simulasi/calculate": {
+      "post": {
+        "tags": ["Simulasi & Keputusan Panen"],
+        "summary": "Hitung Rekomendasi Keputusan Panen (Simpan vs Jual)",
+        "description": "Menghitung pembagian panen berdasarkan standar AKG Kemenkes untuk mencukupi kebutuhan gizi balita keluarga dan sisanya untuk potensi pendapatan UMKM.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["komoditas", "total_panen_kg", "harga_per_kg"],
+                "properties": {
+                  "komoditas": { "type": "string", "example": "lele" },
+                  "total_panen_kg": { "type": "number", "example": 5.0 },
+                  "harga_per_kg": { "type": "number", "example": 25000 },
+                  "lama_cadangan_hari": { "type": "integer", "example": 7 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hasil rekomendasi keputusan panen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "rekomendasi": {
+                      "type": "object",
+                      "properties": {
+                        "berat_simpan_kg": { "type": "number", "example": 1.5 },
+                        "berat_jual_kg": { "type": "number", "example": 3.5 },
+                        "perkiraan_pendapatan": { "type": "number", "example": 87500 },
+                        "protein_tercukupi_g": { "type": "number", "example": 270.0 },
+                        "penjelasan": { "type": "string", "example": "1.5 kg lele mencukupi protein hewani 2 balita selama 7 hari, sisa 3.5 kg dapat dijual." }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/riwayat": {
+      "get": {
+        "tags": ["Riwayat Panen"],
+        "summary": "Ambil Riwayat Kalkulasi & Keputusan Panen",
+        "description": "Mengambil histori catatan simulasi dan keputusan panen pengguna dari tabel `riwayat_kalkulasi` dan `keputusan_panen`.",
+        "responses": {
+          "200": {
+            "description": "Daftar histori berhasil diambil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer", "example": 1 },
+                          "nama_bahan_saat_hitung": { "type": "string", "example": "Ikan Lele" },
+                          "total_panen_kg": { "type": "number", "example": 5.0 },
+                          "dibuat_pada": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatRequest": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Pesan teks atau transkrip suara pengguna",
+            "example": "Berapa lama abon lele tahan disimpan di toples?"
+          },
+          "audioBase64": {
+            "type": "string",
+            "description": "File rekaman suara mentah ter-encode base64 (untuk audio processing multimodal)"
+          },
+          "mimeType": {
+            "type": "string",
+            "example": "audio/webm",
+            "description": "Tipe MIME audio rekaman suara"
+          },
+          "duration": {
+            "type": "string",
+            "example": "0:09",
+            "description": "Durasi perekaman suara"
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "reply": {
+                "type": "string",
+                "example": "Halo Ibu! Senang sekali bisa membersamai Ibu merawat si kecil tercinta 🥰✨\n\nMenurut Buku Panduan Panganita Halaman 12, abon lele kering tahan disimpan 5-7 hari di suhu ruang toples kedap udara...\n\n📚 Rujukan: Buku Panduan Panganita Hlm. 12 & Standar Pengolahan Pangan Lokal\n\n⚠️ Penafian Medis: Bu Nita AI adalah asisten edukasi gizi dan bukan pengganti diagnosis dokter."
+              },
+              "sender": { "type": "string", "example": "Bu Nita AI" },
+              "time": { "type": "string", "example": "13:45 WIT" },
+              "sources": {
+                "type": "array",
+                "items": { "type": "string" },
+                "example": ["Halaman 6", "Halaman 12"]
+              },
+              "dialect": {
+                "type": "object",
+                "properties": {
+                  "detected": { "type": "array", "items": { "type": "string" }, "example": ["Papua"] },
+                  "isDialect": { "type": "boolean", "example": true },
+                  "normalizedQuery": { "type": "string", "example": "kami / anak kami tidak mau makan bubur sagu dan ikan lele..." }
+                }
+              }
+            }
+          }
+        }
+      },
+      "VisionDetectResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "totalDetected": { "type": "integer", "example": 3 },
+          "detections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "class": { "type": "string", "example": "lele" },
+                "confidence": { "type": "number", "example": 0.94 },
+                "bbox": {
+                  "type": "array",
+                  "items": { "type": "number" },
+                  "example": [45, 60, 220, 180]
+                }
+              }
+            }
+          },
+          "estimatedWeightKg": { "type": "number", "example": 2.45 },
+          "latencyMs": { "type": "number", "example": 142.5 }
+        }
+      },
+      "ProfilKeluargaInput": {
+        "type": "object",
+        "required": ["nama_ibu", "provinsi", "kabupaten_kota"],
+        "properties": {
+          "nama_ibu": { "type": "string", "example": "Nurhayati" },
+          "provinsi": { "type": "string", "example": "Papua Barat" },
+          "kabupaten_kota": { "type": "string", "example": "Kabupaten Teluk Bintuni" },
+          "ibu_hamil": { "type": "boolean", "example": false },
+          "trimester_hamil": { "type": "integer", "nullable": true, "example": null, "description": "1-3 jika hamil" },
+          "ibu_menyusui": { "type": "boolean", "example": true },
+          "periode_menyusui": { "type": "integer", "nullable": true, "example": 2, "description": "1: 0-6 bln, 2: 7-12 bln" },
+          "jumlah_bayi_6_11": { "type": "integer", "example": 1 },
+          "jumlah_anak_1_3": { "type": "integer", "example": 1 },
+          "jumlah_anak_4_6": { "type": "integer", "example": 0 },
+          "jumlah_anak_7_9": { "type": "integer", "example": 0 },
+          "jumlah_anak_l_10_12": { "type": "integer", "example": 0 },
+          "jumlah_anak_p_10_12": { "type": "integer", "example": 0 }
+        }
+      },
+      "ProfilKeluarga": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer", "example": 101 },
+              "user_id": { "type": "string", "format": "uuid", "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6" },
+              "dibuat_pada": { "type": "string", "format": "date-time" },
+              "diperbarui_pada": { "type": "string", "format": "date-time" }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/ProfilKeluargaInput"
+          }
+        ]
+      }
+    }
+  }
+}
+

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { formatRegionTime } from "@/lib/regionTimezone";
 import {
   Play,
   Pause,
@@ -17,11 +18,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-function formatTime(date = new Date()) {
-  return date.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatTime(date = new Date(), location = "") {
+  return formatRegionTime(date, location);
 }
 
 function VoiceWaveform() {
@@ -64,7 +62,7 @@ export default function NitaChatScreen({ onSendMessage }) {
       id: "welcome",
       role: "assistant",
       content:
-        "Assalamu'alaikum, Ibu! Saya Bu Nita, asisten gizi PANGANITA. Saya siap membantu Ibu memahami gizi keluarga, bahan pangan, dan pencegahan stunting. Yuk, kita belajar bersama. Ada yang ingin Ibu tanyakan?",
+        "Assalamu'alaikum, Ibu! Saya Bu Nita, asisten gizi Panganita. Saya siap membantu Ibu memahami gizi keluarga, bahan pangan, dan pencegahan stunting. Yuk, kita belajar bersama. Ada yang ingin Ibu tanyakan?",
       time: formatTime(),
     },
   ]);
@@ -171,7 +169,21 @@ export default function NitaChatScreen({ onSendMessage }) {
 
       window.speechSynthesis.cancel();
 
-      const utterance = new SpeechSynthesisUtterance(text);
+      // Normalisasi fonetik agar TTS Android & Windows tidak mengeja huruf per huruf
+      let cleanSpeechText = (text || "")
+        .replace(/“|”/g, "")
+        .replace(/[*#_~`]/g, "")
+        .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "")
+        .replace(/📚.*$/gm, "")
+        .replace(/⚠️.*$/gm, "")
+        .replace(/\bPANGANITA\b/gi, "Panganita")
+        .replace(/\bMPASI\b/gi, "empasi")
+        .replace(/\b1\.000\s*HPK\b/gi, "seribu hari pertama kehidupan")
+        .replace(/\bHPK\b/gi, "hari pertama kehidupan")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const utterance = new SpeechSynthesisUtterance(cleanSpeechText || "Halo Ibu, Bu Nita siap mendengarkan.");
       const selectedVoice = voices.find((voice) => voice.voiceURI === voiceURI);
 
       utterance.lang = selectedVoice?.lang || "id-ID";
@@ -345,21 +357,29 @@ export default function NitaChatScreen({ onSendMessage }) {
     setMessages((previous) => [...previous, userMessage]);
 
     try {
-      if (typeof onSendMessage !== "function") {
-        throw new Error(
-          "Chatbot RAG belum dihubungkan. Tampilan Bu Nita sudah siap untuk integrasi backend.",
-        );
+      let result;
+      if (typeof onSendMessage === "function") {
+        result = await onSendMessage(text);
+      } else {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text }),
+        });
+        const resJson = await res.json();
+        if (!resJson.success && resJson.error) {
+          throw new Error(resJson.error);
+        }
+        result = resJson.data;
       }
-
-      const result = await onSendMessage(text);
 
       const answer =
         typeof result === "string"
           ? result
-          : result?.answer ||
-            result?.reply ||
-            result?.data?.answer ||
-            result?.data?.reply;
+          : result?.reply ||
+            result?.answer ||
+            result?.data?.reply ||
+            result?.data?.answer;
 
       if (!answer) {
         throw new Error("Jawaban dari Bu Nita belum tersedia.");
@@ -370,7 +390,8 @@ export default function NitaChatScreen({ onSendMessage }) {
         role: "assistant",
         content: answer,
         sources: result?.sources || result?.data?.sources || [],
-        time: formatTime(),
+        dialect: result?.dialect || result?.data?.dialect || null,
+        time: result?.time || result?.data?.time || formatTime(new Date(), text),
       };
 
       setMessages((previous) => [...previous, assistantMessage]);
