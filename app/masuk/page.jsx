@@ -1,116 +1,147 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
-  Mail,
+  LoaderCircle,
+  MessageCircle,
+  Phone,
   ShieldCheck,
   Sprout,
-  LoaderCircle,
-  LockKeyhole,
+  Smartphone,
   UserPlus,
-  LogIn,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+
+const OTP_LENGTH = 6;
+const emptyDigits = () => Array(OTP_LENGTH).fill("");
+
+async function postJson(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
 
 export default function MasukPage() {
   const router = useRouter();
 
-  const [mode, setMode] = useState("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [step, setStep] = useState(1);
+  const [phone, setPhone] = useState("");
+  const [digits, setDigits] = useState(emptyDigits);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const inputsRef = useRef([]);
 
-  const isRegister = mode === "register";
+  // Hitung mundur tombol "Kirim ulang"
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
-  function changeMode(nextMode) {
-    setMode(nextMode);
-    setPassword("");
-    setConfirmPassword("");
-    setNotice("");
+  // Kirim otomatis begitu 6 digit terisi
+  const code = digits.join("");
+  useEffect(() => {
+    if (step === 2 && code.length === OTP_LENGTH && !loading) verifyOtp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, step]);
+
+  async function requestOtp(e) {
+    e?.preventDefault();
+    if (loading) return;
     setError("");
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setNotice("");
-    setError("");
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setError("Masukkan alamat email yang valid.");
-      return;
-    }
-
-    if (password.length < 8) {
-      setError("Password harus terdiri dari minimal 8 karakter.");
-      return;
-    }
-
-    if (isRegister && password !== confirmPassword) {
-      setError("Konfirmasi password tidak cocok.");
-      return;
-    }
-
     setLoading(true);
-
     try {
-      if (isRegister) {
-        const { data, error: authError } = await supabase.auth.signUp({
-          email: normalizedEmail,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        });
-
-        if (authError) throw authError;
-
-        setPassword("");
-        setConfirmPassword("");
-
-        if (data.session) {
-          router.replace("/dashboard");
-          router.refresh();
-          return;
-        }
-
-        setNotice(
-          "Pendaftaran berhasil diproses. Jika konfirmasi email diwajibkan, buka email kamu terlebih dahulu sebelum masuk.",
-        );
-      } else {
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
-
-        if (authError) throw authError;
-
-        router.replace("/dashboard");
-        router.refresh();
+      const { ok, data } = await postJson("/api/auth/whatsapp/request-otp", {
+        phone,
+      });
+      if (!ok) {
+        if (data.retryAfter) setCooldown(data.retryAfter);
+        setError(data.error || "Gagal mengirim kode. Coba lagi.");
+        return;
       }
-    } catch (err) {
-      console.error("Autentikasi gagal:", err);
-
-      if (isRegister) {
-        setError(
-          err?.message ||
-            "Pendaftaran gagal. Periksa email dan konfigurasi Supabase.",
-        );
-      } else {
-        setError("Login gagal. Periksa email dan password, lalu coba lagi.");
-      }
+      setDigits(emptyDigits());
+      setCooldown(data.resendAfter ?? 60);
+      setStep(2);
+      setTimeout(() => inputsRef.current[0]?.focus(), 50);
+    } catch {
+      setError("Tidak bisa terhubung ke server. Periksa koneksi internetmu.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function verifyOtp() {
+    setError("");
+    setLoading(true);
+    try {
+      const { ok, data } = await postJson("/api/auth/whatsapp/verify-otp", {
+        phone,
+        code,
+      });
+      if (!ok) {
+        setError(data.error || "Kode tidak valid.");
+        setDigits(emptyDigits());
+        inputsRef.current[0]?.focus();
+        setLoading(false);
+        return;
+      }
+      // Tukar token dari server menjadi sesi Supabase di browser
+      const { error: sbError } = await supabase.auth.verifyOtp({
+        token_hash: data.tokenHash,
+        type: "email",
+      });
+      if (sbError) {
+        setError("Gagal membuat sesi. Minta kode baru dan coba lagi.");
+        setDigits(emptyDigits());
+        setLoading(false);
+        return;
+      }
+      router.replace(data.redirectTo || "/dashboard");
+    } catch {
+      setError("Tidak bisa terhubung ke server. Periksa koneksi internetmu.");
+      setLoading(false);
+    }
+  }
+
+  function changeDigit(i, value) {
+    const v = value.replace(/\D/g, "").slice(-1);
+    setDigits((d) => d.map((x, idx) => (idx === i ? v : x)));
+    if (v && i < OTP_LENGTH - 1) inputsRef.current[i + 1]?.focus();
+  }
+
+  function keyDown(i, e) {
+    if (e.key === "Backspace" && !digits[i] && i > 0)
+      inputsRef.current[i - 1]?.focus();
+    if (e.key === "ArrowLeft" && i > 0) inputsRef.current[i - 1]?.focus();
+    if (e.key === "ArrowRight" && i < OTP_LENGTH - 1)
+      inputsRef.current[i + 1]?.focus();
+  }
+
+  function paste(e) {
+    const pasted = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, OTP_LENGTH);
+    if (!pasted) return;
+    e.preventDefault();
+    setDigits(Array.from({ length: OTP_LENGTH }, (_, i) => pasted[i] ?? ""));
+    inputsRef.current[Math.min(pasted.length, OTP_LENGTH - 1)]?.focus();
+  }
+
+  function backToPhone() {
+    setStep(1);
+    setError("");
+    setDigits(emptyDigits());
   }
 
   return (
@@ -165,21 +196,37 @@ export default function MasukPage() {
 
             <div>
               <span className="auth-benefit-icon">
-                <LockKeyhole size={19} />
+                <MessageCircle size={19} />
               </span>
               <span>
-                <strong>Login dengan password</strong>
-                <small>Gunakan email dan password untuk masuk kembali.</small>
+                <strong>Masuk lewat WhatsApp</strong>
+                <small>
+                  Tanpa password. Cukup kode OTP yang dikirim ke nomor Ibu.
+                </small>
+              </span>
+            </div>
+
+            <div
+              style={{
+                borderTop: "1px solid rgba(255, 255, 255, 0.3)",
+                paddingTop: "16px",
+              }}
+            >
+              <span
+                className="auth-benefit-icon"
+                style={{ background: "#f5c451", color: "#14452f" }}
+              >
+                <UserPlus size={19} />
+              </span>
+              <span>
+                <strong>Belum punya akun? Langsung masuk</strong>
+                <small>Akun dibuat otomatis saat pertama kali masuk.</small>
               </span>
             </div>
           </div>
-
-          <div className="auth-story-foot">
-            PANGANITA · Pangan dan gizi untuk keluarga
-          </div>
         </section>
 
-        {/* Formulir login dan pendaftaran */}
+        {/* Formulir login OTP WhatsApp */}
         <section className="auth-form-panel">
           <div className="auth-form-inner">
             <div className="auth-mobile-logo">
@@ -193,163 +240,159 @@ export default function MasukPage() {
             </div>
 
             <div className="auth-step-indicator">
-              <span className="current">1</span>
+              <span className={step === 1 ? "current" : undefined}>1</span>
               <i />
-              <span>2</span>
+              <span className={step === 2 ? "current" : undefined}>2</span>
             </div>
 
-            <div className="auth-form-eyebrow">
-              {isRegister ? "PENGGUNA BARU" : "SELAMAT DATANG"}
-            </div>
+            <div className="auth-form-eyebrow">SELAMAT DATANG</div>
 
-            <h2>{isRegister ? "Buat akun Ibu" : "Masuk ke PANGANITA"}</h2>
+            <h2>{step === 1 ? "Masuk ke PANGANITA" : "Masukkan kode OTP"}</h2>
 
             <p className="auth-form-desc">
-              {isRegister
-                ? "Buat akun untuk mulai mengelola hasil panen dan profil keluarga."
-                : "Gunakan email dan password untuk masuk ke akun PANGANITA."}
+              {step === 1
+                ? "Masukkan nomor WhatsApp Ibu. Kami kirim kode verifikasi 6 digit."
+                : `Kode 6 digit sudah dikirim ke WhatsApp ${phone}.`}
             </p>
 
-            <form onSubmit={handleSubmit} className="auth-form">
-              <label htmlFor="email">Alamat email</label>
+            {step === 1 ? (
+              <form onSubmit={requestOtp} className="auth-form" noValidate>
+                <label htmlFor="phone">Nomor WhatsApp</label>
 
-              <div className="phone-input-wrap">
-                <span className="country-code">
-                  <Mail size={18} />
-                </span>
+                <div className="phone-input-wrap">
+                  <span className="country-code">
+                    <Phone size={18} />
+                  </span>
 
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  placeholder="nama@email.com"
-                  value={email}
-                  onChange={(event) => {
-                    setEmail(event.target.value);
-                    setNotice("");
-                    setError("");
-                  }}
-                  required
-                  disabled={loading}
-                />
-              </div>
+                  <input
+                    id="phone"
+                    type="tel"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    placeholder="08123456789"
+                    value={phone}
+                    onChange={(event) => {
+                      setPhone(event.target.value);
+                      setError("");
+                    }}
+                    required
+                    disabled={loading}
+                  />
+                </div>
 
-              <label htmlFor="password">Password</label>
-
-              <div className="phone-input-wrap">
-                <span className="country-code">
-                  <LockKeyhole size={18} />
-                </span>
-
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete={
-                    isRegister ? "new-password" : "current-password"
-                  }
-                  placeholder="Minimal 8 karakter"
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    setError("");
-                  }}
-                  minLength={8}
-                  required
-                  disabled={loading}
-                />
-              </div>
-
-              {isRegister && (
-                <>
-                  <label htmlFor="confirmPassword">Konfirmasi password</label>
-
-                  <div className="phone-input-wrap">
-                    <span className="country-code">
-                      <ShieldCheck size={18} />
-                    </span>
-
-                    <input
-                      id="confirmPassword"
-                      type="password"
-                      autoComplete="new-password"
-                      placeholder="Ulangi password"
-                      value={confirmPassword}
-                      onChange={(event) => {
-                        setConfirmPassword(event.target.value);
-                        setError("");
-                      }}
-                      minLength={8}
-                      required
-                      disabled={loading}
-                    />
+                {error && (
+                  <div className="auth-notice" role="alert">
+                    {error}
                   </div>
-                </>
-              )}
-
-              {error && (
-                <div className="auth-notice" role="alert">
-                  {error}
-                </div>
-              )}
-
-              {notice && (
-                <div className="auth-notice" role="status">
-                  {notice}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="button button-primary button-large button-full"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <LoaderCircle size={18} className="animate-spin" />
-                    Memproses...
-                  </>
-                ) : isRegister ? (
-                  <>
-                    Buat akun
-                    <UserPlus size={18} />
-                  </>
-                ) : (
-                  <>
-                    Masuk
-                    <ArrowRight size={18} />
-                  </>
                 )}
-              </button>
-            </form>
+
+                <button
+                  type="submit"
+                  className="button button-primary button-large button-full"
+                  disabled={loading || phone.replace(/\D/g, "").length < 9}
+                >
+                  {loading ? (
+                    <>
+                      <LoaderCircle size={18} className="animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      Kirim kode ke WhatsApp
+                      <ArrowRight size={18} />
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <div className="auth-form">
+                <label htmlFor="otp-0">Kode OTP</label>
+
+                <div className="flex justify-between gap-2" onPaste={paste}>
+                  {digits.map((d, i) => (
+                    <input
+                      key={i}
+                      id={`otp-${i}`}
+                      ref={(el) => (inputsRef.current[i] = el)}
+                      value={d}
+                      onChange={(e) => changeDigit(i, e.target.value)}
+                      onKeyDown={(e) => keyDown(i, e)}
+                      onFocus={(e) => e.target.select()}
+                      inputMode="numeric"
+                      autoComplete={i === 0 ? "one-time-code" : "off"}
+                      maxLength={1}
+                      disabled={loading}
+                      aria-label={`Digit ${i + 1} dari ${OTP_LENGTH}`}
+                      className="h-12 w-full max-w-[3.25rem] rounded-xl border border-slate-200 bg-white text-center text-xl font-bold text-[#14452f] outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 disabled:opacity-60"
+                    />
+                  ))}
+                </div>
+
+                {error && (
+                  <div className="auth-notice" role="alert">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={verifyOtp}
+                  className="button button-primary button-large button-full"
+                  disabled={loading || code.length < OTP_LENGTH}
+                >
+                  {loading ? (
+                    <>
+                      <LoaderCircle size={18} className="animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      Masuk
+                      <ArrowRight size={18} />
+                    </>
+                  )}
+                </button>
+
+                <div className="flex justify-center text-xs">
+                  {cooldown > 0 ? (
+                    <span className="text-slate-500" aria-live="polite">
+                      Kirim ulang dalam {cooldown} dtk
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={requestOtp}
+                      disabled={loading}
+                      className="auth-mode-toggle"
+                    >
+                      Kirim ulang kode
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="auth-privacy">
               <ShieldCheck size={17} />
               <span>
-                Gunakan email yang dapat kamu akses. Jangan bagikan password
-                kepada orang lain.
+                Gunakan nomor WhatsApp aktif milik Ibu. Jangan bagikan kode OTP
+                kepada siapa pun.
               </span>
             </div>
 
-            <div className="auth-bottom-link">
-              {isRegister ? "Sudah punya akun? " : "Belum punya akun? "}
-
-              <button
-                type="button"
-                onClick={() => changeMode(isRegister ? "login" : "register")}
-                disabled={loading}
-                className="auth-mode-toggle"
-              >
-                {isRegister ? (
-                  <>
-                    <LogIn size={14} />
-                    Masuk
-                  </>
-                ) : (
-                  "Daftar sekarang"
-                )}
-              </button>
-            </div>
+            {step === 2 && (
+              <div className="auth-bottom-link">
+                <button
+                  type="button"
+                  onClick={backToPhone}
+                  disabled={loading}
+                  className="auth-mode-toggle"
+                >
+                  <Smartphone size={14} />
+                  Login dengan nomor lain
+                </button>
+              </div>
+            )}
 
             {/* Tombol kembali dengan styling dari globals.css */}
             <div className="auth-back-home-wrap">
@@ -363,7 +406,7 @@ export default function MasukPage() {
       </div>
 
       <div className="auth-page-foot">
-        © PANGANITA · Mendampingi keluarga mengelola hasil panen
+        © PANGANITA · Pangan dan gizi untuk keluarga
       </div>
     </main>
   );

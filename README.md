@@ -268,3 +268,64 @@ Buat Pull Request di GitHub menuju `main`. Minta anggota tim meninjau perubahan 
 PANGANITA merupakan alat bantu perencanaan. Angka simulasi, perkiraan pendapatan, dan informasi gizi perlu diverifikasi. Jangan gunakan hasil prototipe sebagai pengganti rekomendasi ahli gizi atau tenaga kesehatan.
 
 Dikembangkan untuk mendukung pengelolaan hasil panen, perencanaan pangan keluarga, dan pencegahan stunting melalui PANGANITA.
+
+```
+Web-Panganita
+├─ .eslintrc.json
+├─ app
+│  ├─ akun
+│  │  └─ page.jsx
+│  ├─ api
+│  │  └─ vision
+│  │     └─ detect
+│  │        └─ route.js
+│  ├─ auth
+│  │  └─ callback
+│  │     └─ page.jsx
+│  ├─ bu-nita
+│  │  └─ page.jsx
+│  ├─ dashboard
+│  │  └─ page.jsx
+│  ├─ globals.css
+│  ├─ keluarga
+│  │  └─ page.jsx
+│  ├─ layout.jsx
+│  ├─ masuk
+│  │  └─ page.jsx
+│  ├─ page.jsx
+│  ├─ pindai
+│  │  └─ page.jsx
+│  └─ riwayat
+│     └─ page.jsx
+├─ backend
+│  ├─ README-INTEGRASI.md
+│  ├─ requirements.txt
+│  └─ src
+│     ├─ vision
+│     │  ├─ api.py
+│     │  ├─ config.py
+│     │  ├─ detector.py
+│     │  └─ __init__.py
+│     └─ __init__.py
+├─ components
+│  ├─ chat
+│  │  └─ NitaChatScreen.jsx
+│  ├─ GlobalNavbar.jsx
+│  └─ Navbar.jsx
+├─ lib
+│  └─ supabase.js
+├─ next-env.d.ts
+├─ next.config.mjs
+├─ package-lock.json
+├─ package.json
+├─ postcss.config.js
+├─ proxy.js
+├─ public
+│  ├─ images
+│  │  └─ bu-nita.png
+│  └─ logo-panganita.png
+├─ README.md
+├─ tailwind.config.js
+└─ tsconfig.json
+
+```
